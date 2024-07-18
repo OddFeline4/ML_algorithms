@@ -6,6 +6,7 @@ class MyLineReg():
         for key in kwargs:
             self.__setattr__(key,kwargs[key])
         self.weights = weights
+
     def fit(self, X, y, verbose):
         count_verbose = 1
         X.insert(0,'w0',np.full(shape=X.shape[0],fill_value=1))
@@ -19,6 +20,7 @@ class MyLineReg():
             if count_verbose % verbose == 0:
                 print(count_verbose,'|',error)
             count_verbose+=1
+
     def get_coef(self):
         return self.weights[1:]
 
