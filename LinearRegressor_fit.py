@@ -17,9 +17,15 @@ class MyLineReg():
             y_diff = y_pred - y
             gradient = y_diff.dot(X)*(2/X.shape[0])
             self.weights = self.weights - self.__dict__['learning_rate']*gradient
-            if count_verbose % verbose == 0:
-                print(count_verbose,'|',error)
-            count_verbose+=1
+            if not verbose and verbose != 0:
+                if count_verbose % verbose == 0:
+                    print(count_verbose, '|', error)
+            count_verbose += 1
+
+    def predict(self,X:pd.DataFrame):
+        X.insert(0,'w0',np.full(shape=X.shape[0],fill_value=1))
+        y_predict = X.dot(self.weights)
+        return y_predict
 
     def get_coef(self):
         return self.weights[1:]
