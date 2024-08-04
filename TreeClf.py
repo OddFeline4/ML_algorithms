@@ -12,7 +12,7 @@ class Node:
         self.right = None
 
 class MyTreeClf:
-    def __init__(self, max_depth=5, min_samples_split=2, max_leafs=20, bins=None,edge=0.5):
+    def __init__(self, max_depth=5, min_samples_split=2, max_leafs=20, bins=None, edge=0.5, criterion='entropy'):
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.max_leafs = max_leafs
@@ -22,11 +22,14 @@ class MyTreeClf:
         self.edge = edge
         self.bins = bins
         self.X_thresholds = None
+        self.criterion = criterion
+        self.fi = {}
 
     def get_sum(self):
         return self.__sum_tree_values
 
     def fit(self, X, y):
+        self.fi = {col: 0 for col in X.columns}
         if not(self.bins is None):
             thresholds = {}
             for col in X.columns:
@@ -64,7 +67,16 @@ class MyTreeClf:
 
             X_right = X_root.loc[X_root[col_name] > split_value]
             y_right = y_root.loc[X_root[col_name] > split_value]
-
+            if self.criterion == 'entropy':
+                I0 = self.calculate_entropy(y_root)
+                I_left = self.calculate_entropy(y_left)
+                I_right = self.calculate_entropy(y_right)
+            else:
+                I0 = self.calculate_gini(y_root)
+                I_left = self.calculate_gini(y_left)
+                I_right = self.calculate_gini(y_right)
+            importance = (len(y_root)/len(y))*(I0-I_left*len(y_left)/len(y_root)-I_right*len(y_right)/len(y_root))
+            self.fi[col_name] += importance
             root.left = create_tree(root.left, X_left, y_left, 'left', depth + 1)
             root.right = create_tree(root.right, X_right, y_right, 'right', depth + 1)
 
@@ -91,12 +103,67 @@ class MyTreeClf:
         else:
             return -1 *((y.sum()/y.count())*np.log2(y.sum()/y.count()) + ((y.count()-y.sum())/y.count())*np.log2(((y.count()-y.sum())/y.count())))
 
+    def calculate_gini(self, y):
+        prob_0 = (y.count()-y.sum())/y.count()
+        prob_1 = y.sum()/y.count()
+        return 1 - prob_1**2 - prob_0**2
 
-    def get_best_split(self, X, y):
+    def best_gini_split(self, X, y):
         columns = X.columns
         info_profit = 0
         split_value = None
         col_name = None
+
+        start_gini = self.calculate_gini(y)
+        for col in columns:
+            if self.bins is None:
+                uniq_values = X[col].sort_values().unique()
+                uniq = [(uniq_values[i]+uniq_values[i+1])/2 for i in range(len(uniq_values)-1)]
+                for uniq_value in uniq:
+                    indexes_left = X[X[col] <= uniq_value].index
+                    indexes_right = X[X[col] > uniq_value].index
+                    y_left = y[indexes_left]
+                    y_right = y[indexes_right]
+                    G_left = self.calculate_gini(y_left)
+                    G_right = self.calculate_gini(y_right)
+                    info_profit_step = start_gini - (y_left.count()/y.count())*G_left - (y_right.count()/y.count())*G_right
+                    if info_profit_step > info_profit:
+                        info_profit = info_profit_step
+                        split_value = uniq_value
+                        col_name = str(col)
+            else:
+                edges = self.X_thresholds[col]
+                for uniq_value in edges:
+                    indexes_left = X[X[col] <= uniq_value].index
+                    indexes_right = X[X[col] > uniq_value].index
+                    if len(indexes_left) == 0 or len(indexes_right) == 0:
+                        continue
+                    y_left = y[indexes_left]
+                    y_right = y[indexes_right]
+                    G_left = self.calculate_gini(y_left)
+                    G_right = self.calculate_gini(y_right)
+                    info_profit_step = start_gini - (y_left.count()/y.count())*G_left - (y_right.count()/y.count())*G_right
+                    if info_profit_step > info_profit:
+                        info_profit = info_profit_step
+                        split_value = uniq_value
+                        col_name = str(col)
+        return col_name, split_value, info_profit
+
+
+
+    def get_best_split(self, X, y):
+        if self.criterion == 'entropy':
+            col_name, split_value, info_profit = self.best_entropy_split(X,y)
+        else:
+            col_name, split_value, info_profit = self.best_gini_split(X,y)
+        return col_name, split_value, info_profit
+
+    def best_entropy_split(self, X, y):
+        columns = X.columns
+        info_profit = 0
+        split_value = None
+        col_name = None
+
         start_entropy = self.calculate_entropy(y)
         for col in columns:
             if self.bins is None:
@@ -160,10 +227,11 @@ class MyTreeClf:
 df = pd.read_csv('data_banknote_authentication.txt', header=None)
 df.columns = ['variance', 'skewness', 'curtosis', 'entropy', 'target']
 X, y = df.iloc[:,:4], df['target']
-obj = MyTreeClf(max_depth=10, max_leafs=21, min_samples_split=40, bins=10)
+obj = MyTreeClf(max_depth=15,  min_samples_split=20, max_leafs=30, bins=6, criterion='gini')
 obj.fit(X,y)
 obj.print_tree()
 print(obj.get_sum())
+print(obj.fi)
 # result1 = pd.Series(obj.predict_proba(X))
 # result2 = pd.Series(obj.predict(X))
 # res = pd.concat([result1,result2],axis='columns')
