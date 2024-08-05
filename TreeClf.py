@@ -224,24 +224,54 @@ class MyTreeClf:
 
 
 
-df = pd.read_csv('data_banknote_authentication.txt', header=None)
-df.columns = ['variance', 'skewness', 'curtosis', 'entropy', 'target']
-X, y = df.iloc[:,:4], df['target']
-obj = MyTreeClf(max_depth=15,  min_samples_split=20, max_leafs=30, bins=6, criterion='gini')
-obj.fit(X,y)
-obj.print_tree()
-print(obj.get_sum())
-print(obj.fi)
-# result1 = pd.Series(obj.predict_proba(X))
-# result2 = pd.Series(obj.predict(X))
-# res = pd.concat([result1,result2],axis='columns')
-# print(res)
+def calculate_metric(y_pred,y_true,metric='accuracy'):
+        y_prob = y_pred
+        y_pred = np.where(y_pred > 0.5, 1, 0)
+        if metric == 'accuracy':
+            return (y_true == y_pred).sum()/len(y_true)
+        elif metric == 'precision':
+            TP = len(list(filter(lambda x: x[0] + x[1] == 2,zip(y_true,y_pred))))
+            FP =  len(list(filter(lambda x: x[0] == 0 and x[0] + x[1] == 1,zip(y_true,y_pred))))
+            return TP/(TP+FP)
+        elif metric == 'recall':
+            TP = len(list(filter(lambda x: x[0] + x[1] == 2,zip(y_true,y_pred))))
+            FN =  len(list(filter(lambda x: x[0] == 1 and x[0] + x[1] == 1,zip(y_true,y_pred))))
+            return TP/(TP+FN)
+        elif metric == 'f1':
+            TP = len(list(filter(lambda x: x[0] + x[1] == 2,zip(y_true,y_pred))))
+            FP =  len(list(filter(lambda x: x[0] == 0 and x[0] + x[1] == 1, zip(y_true,y_pred))))
+            FN =  len(list(filter(lambda x: x[0] == 1 and x[0] + x[1] == 1, zip(y_true,y_pred))))
+            precicion = TP/(TP+FP)
+            recall = TP/(TP+FN)
+            return (2*precicion*recall)/(recall+precicion)
+        elif metric == 'roc_auc':
+            roc_auc_line = sorted(zip(round(y_prob,10),y_true), key=lambda z: (-z[0],-z[1]))
+            total_score = 0
+            store = 0
+            for el in roc_auc_line:
+                if el[1] == 1:
+                    store += 1
+                else:
+                    total_score += store
+            positive = (y_true == 1).sum()
+            negative = (y_true == 0).sum()
+            return total_score/(positive*negative)
 
 
 
 
 
-
-
-
-
+# from sklearn.model_selection import train_test_split
+# df = pd.read_csv('data_banknote_authentication.txt', header=None)
+# df.columns = ['variance', 'skewness', 'curtosis', 'entropy', 'target']
+# X, y = df.iloc[:,:4], df['target']
+# X_train, X_test, y_train,y_test = train_test_split(X,y,test_size=0.25)
+# obj = MyTreeClf(max_depth=5, max_leafs=16, min_samples_split=2)
+# obj.fit(X_train,y_train)
+# y_pred = pd.Series(obj.predict(X_test))
+# y_pred_proba = pd.Series(obj.predict_proba(X_test))
+# print('acc',calculate_metric(y_pred,y_test))
+# print('prec',calculate_metric(y_pred,y_test,metric='precision'))
+# print('recall',calculate_metric(y_pred,y_test,metric='recall'))
+# print('f1',calculate_metric(y_pred,y_test,metric='f1'))
+# print('roc_auc',calculate_metric(y_pred_proba,y_test,metric='roc_auc'))
